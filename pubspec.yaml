@@ -23,4 +23,4 @@ flutter:
   uses-material-design: true
 
   assets:
-   - assets/audio/
+    - assets/audio/test.wav
