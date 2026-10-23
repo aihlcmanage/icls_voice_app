@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+// ignore: avoid_web_libraries_in_flutter
+import 'dart:html' as html;
+import 'package:flutter/services.dart'; // AssetManifest用
 
 void main() {
   runApp(const IclsVoiceApp());
@@ -29,45 +31,83 @@ class VoiceButtonPage extends StatefulWidget {
 }
 
 class _VoiceButtonPageState extends State<VoiceButtonPage> {
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  String _statusMessage = 'ボタンを押して音声を再生';
+  String _statusMessage = '音声リストを読み込み中...';
+  List<String> audioFiles = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAudioAssets();
+  }
 
   // ==========================================
-  // 音声ファイルのリスト（日本語ファイル名をそのまま記述）
+  // assets/audio/ フォルダ内のファイルを自動スキャンして取得
   // ==========================================
-  final List<String> audioFiles = [
-    'test.wav',
-    '001_青山龍星（ノーマル）_くっ 苦しい 苦しい.wav',
-  ];
-
-  Future<void> _playSound(String fileName) async {
+  Future<void> _loadAudioAssets() async {
     try {
-      await _audioPlayer.stop();
-      
-      // 二重エンコードを防ぐため、Uri.encodeComponent は使わずそのまま AssetSource に渡す
-      await _audioPlayer.play(AssetSource('audio/$fileName'));
-      
+      // 最新のFlutter仕様（AssetManifest API）を利用してアセット一覧を取得
+      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
+      final allAssets = manifest.listAssets();
+
+      // 'assets/audio/' 階層にあるファイル、かつ '.wav' で終わるものを自動抽出
+      final filteredFiles = allAssets.where((path) {
+        return path.startsWith('assets/audio/') && path.toLowerCase().endsWith('.wav');
+      }).map((path) {
+        // 'assets/audio/ファイル名.wav' からファイル名部分だけを抽出
+        return path.split('/').last;
+      }).toList();
+
       setState(() {
-        _statusMessage = '再生中: $fileName';
+        audioFiles = filteredFiles;
+        if (audioFiles.isEmpty) {
+          _statusMessage = 'assets/audio/ 内に音声が見つかりませんでした';
+        } else {
+          _statusMessage = '音声ファイル数: ${audioFiles.length} 件（準備完了）';
+        }
       });
     } catch (e) {
       setState(() {
-        _statusMessage = '再生エラー: $e';
+        _statusMessage = 'アセット読み込みエラー: $e';
       });
     }
   }
 
-  @override
-  void dispose() {
-    _audioPlayer.dispose();
-    super.dispose();
+  // ブラウザの標準機能（HTMLAudioElement）でダイレクトにWAVを再生
+  void _playSound(String fileName) {
+    try {
+      final encodedFileName = Uri.encodeComponent(fileName);
+      final assetPath = 'assets/audio/$encodedFileName';
+
+      final audio = html.AudioElement(assetPath);
+      
+      audio.play().then((_) {
+        setState(() {
+          _statusMessage = '再生中: $fileName';
+        });
+      }).catchError((e) {
+        setState(() {
+          _statusMessage = '再生エラー（ブラウザ拒否）: $e';
+        });
+      });
+
+      audio.onEnded.listen((_) {
+        setState(() {
+          _statusMessage = '再生終了';
+        });
+      });
+      
+    } catch (e) {
+      setState(() {
+        _statusMessage = 'エラー: $e';
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ICLS シミュレーション音声アプリ'),
+        title: const Text('ICLS シミュレーション音声アプリ（自動全反映）'),
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
       ),
       body: Padding(
@@ -87,33 +127,35 @@ class _VoiceButtonPageState extends State<VoiceButtonPage> {
               ),
             ),
             Expanded(
-              child: GridView.builder(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 2.5,
-                ),
-                itemCount: audioFiles.length,
-                itemBuilder: (context, index) {
-                  final fileName = audioFiles[index];
+              child: audioFiles.isEmpty
+                  ? const Center(child: CircularProgressIndicator())
+                  : GridView.builder(
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 2,
+                        crossAxisSpacing: 12,
+                        mainAxisSpacing: 12,
+                        childAspectRatio: 2.5,
+                      ),
+                      itemCount: audioFiles.length,
+                      itemBuilder: (context, index) {
+                        final fileName = audioFiles[index];
 
-                  return ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      elevation: 2,
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                        return ElevatedButton(
+                          style: ElevatedButton.styleFrom(
+                            elevation: 2,
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                          ),
+                          onPressed: () => _playSound(fileName),
+                          child: Text(
+                            fileName, // ファイル名をそのままボタンに表示
+                            style: const TextStyle(fontSize: 12),
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        );
+                      },
                     ),
-                    onPressed: () => _playSound(fileName),
-                    child: Text(
-                      fileName,
-                      style: const TextStyle(fontSize: 12),
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                },
-              ),
             ),
           ],
         ),
