@@ -38,4 +38,4 @@ flutter:
 
   # 音声ファイルを格納するフォルダを指定
   assets:
-    - assets/audio/
+   - assets/audio/
