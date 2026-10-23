@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   runApp(const MyApp());
@@ -7,116 +10,141 @@ void main() {
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
-  // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Flutter Demo',
+      title: 'ICLS 患者音声操作パネル',
       theme: ThemeData(
-        // This is the theme of your application.
-        //
-        // TRY THIS: Try running your application with "flutter run". You'll see
-        // the application has a purple toolbar. Then, without quitting the app,
-        // try changing the seedColor in the colorScheme below to Colors.green
-        // and then invoke "hot reload" (save your changes or press the "hot
-        // reload" button in a Flutter-supported IDE, or press "r" if you used
-        // the command line to start the app).
-        //
-        // Notice that the counter didn't reset back to zero; the application
-        // state is not lost during the reload. To reset the state, use hot
-        // restart instead.
-        //
-        // This works for code too, not just values: Most code changes can be
-        // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        primarySwatch: Colors.blue,
+        useMaterial3: true,
       ),
-      home: const MyHomePage(title: 'Flutter Demo Home Page'),
+      home: const VoiceScreen(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  const MyHomePage({super.key, required this.title});
-
-  // This widget is the home page of your application. It is stateful, meaning
-  // that it has a State object (defined below) that contains fields that affect
-  // how it looks.
-
-  // This class is the configuration for the state. It holds the values (in this
-  // case the title) provided by the parent (in this case the App widget) and
-  // used by the build method of the State. Fields in a Widget subclass are
-  // always marked "final".
-
-  final String title;
+class VoiceScreen extends StatefulWidget {
+  const VoiceScreen({super.key});
 
   @override
-  State<MyHomePage> createState() => _MyHomePageState();
+  State<VoiceScreen> createState() => _VoiceScreenState();
 }
 
-class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
+class _VoiceScreenState extends State<VoiceScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+  List<Map<String, String>> _audioItems = []; // {'title': '胸が苦しいです', 'path': 'audio/胸が苦しいです.mp3'}
+  bool _isLoading = true;
 
-  void _incrementCounter() {
-    setState(() {
-      // This call to setState tells the Flutter framework that something has
-      // changed in this State, which causes it to rerun the build method below
-      // so that the display can reflect the updated values. If we changed
-      // _counter without calling setState(), then the build method would not be
-      // called again, and so nothing would appear to happen.
-      _counter++;
-    });
+  @override
+  void initState() {
+    super.initState();
+    _loadAudioAssets();
+  }
+
+  // Assets内の音声ファイルを自動検索してリスト化する関数
+  Future<void> _loadAudioAssets() async {
+    try {
+      // AssetManifestを取得
+      final manifestContent = await rootBundle.loadString('AssetManifest.json');
+      final Map<String, dynamic> manifestMap = json.decode(manifestContent);
+
+      // assets/audio/ 配下にある音声ファイルのみ抽出
+      final audioPaths = manifestMap.keys.where((String key) {
+        return key.startsWith('assets/audio/') &&
+            (key.endsWith('.mp3') || key.endsWith('.wav') || key.endsWith('.m4a'));
+      }).toList();
+
+      List<Map<String, String>> items = [];
+
+      for (String fullPath in audioPaths) {
+        // パスからファイル名のみ抽出 (例: "assets/audio/胸が苦しいです.mp3" -> "胸が苦しいです.mp3")
+        String fileName = fullPath.split('/').last;
+
+        // 拡張子を取り除く (例: "胸が苦しいです.mp3" -> "胸が苦しいです")
+        String title = fileName.substring(0, fileName.lastIndexOf('.'));
+
+        // audioplayersパッケージで再生するために "assets/" プレフィックスを取り除く
+        String cleanPath = fullPath.replaceFirst('assets/', '');
+
+        items.add({
+          'title': title,
+          'path': cleanPath,
+        });
+      }
+
+      setState(() {
+        _audioItems = items;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('Assets読み込みエラー: $e');
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  // 音声再生関数
+  Future<void> _playAudio(String path) async {
+    try {
+      await _audioPlayer.stop(); // 連続で押された時に前の音を止めて即再生
+      await _audioPlayer.play(AssetSource(path));
+    } catch (e) {
+      print('再生エラー: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // TRY THIS: Try changing the color here to a specific color (to
-        // Colors.amber, perhaps?) and trigger a hot reload to see the AppBar
-        // change color while the other colors stay the same.
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        title: const Text('ICLS 患者音声コントローラー'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _loadAudioAssets,
+          ),
+        ],
       ),
-      body: Center(
-        // Center is a layout widget. It takes a single child and positions it
-        // in the middle of the parent.
-        child: Column(
-          // Column is also a layout widget. It takes a list of children and
-          // arranges them vertically. By default, it sizes itself to fit its
-          // children horizontally, and tries to be as tall as its parent.
-          //
-          // Column has various properties to control how it sizes itself and
-          // how it positions its children. Here we use mainAxisAlignment to
-          // center the children vertically; the main axis here is the vertical
-          // axis because Columns are vertical (the cross axis would be
-          // horizontal).
-          //
-          // TRY THIS: Invoke "debug painting" (choose the "Toggle Debug Paint"
-          // action in the IDE, or press "p" in the console), to see the
-          // wireframe for each widget.
-          mainAxisAlignment: .center,
-          children: [
-            const Text('You have pushed the button this many times:'),
-            Text(
-              '$_counter',
-              style: Theme.of(context).textTheme.headlineMedium,
-            ),
-          ],
-        ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: const Icon(Icons.add),
-      ),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : _audioItems.isEmpty
+              ? const Center(child: Text('assets/audio/ に音声ファイルが見つかりません'))
+              : Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: GridView.builder(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 3, // iPad横画面で見やすい3列配置
+                      childAspectRatio: 2.2,
+                      crossAxisSpacing: 12,
+                      mainAxisSpacing: 12,
+                    ),
+                    itemCount: _audioItems.length,
+                    itemBuilder: (context, index) {
+                      final item = _audioItems[index];
+                      return ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigoAccent,
+                          foregroundColor: Colors.white,
+                          elevation: 3,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () => _playAudio(item['path']!),
+                        child: Text(
+                          item['title']!,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
+                  ),
+                ),
     );
   }
 }
