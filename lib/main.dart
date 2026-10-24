@@ -87,12 +87,21 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     }
   }
 
-  // 半角英数字のファイル名で音声再生（Flutter Webのネストされたアセットパスに対応）
+  // 強制的に正しい絶対パス/相対パスを構築して音声再生
   void _playSound(String fileName, String label) {
     try {
-      // 現在のWebページのURLベース（例: /icls_voice_app/）を取得して結合する
-      final basePath = html.window.location.pathname ?? '';
-      final assetPath = '${basePath.endsWith('/') ? basePath : '$basePath/'}assets/assets/audio/$fileName';
+      // origin (例: https://aihlcmanage.github.io) と pathname (例: /icls_voice_app/) を確実に結合
+      final origin = html.window.location.origin;
+      final pathname = html.window.location.pathname ?? '/';
+      
+      // パスが /icls_voice_app/ で終わるように調整
+      String baseFolder = pathname.endsWith('/') ? pathname : '$pathname/';
+      if (!baseFolder.startsWith('/')) {
+        baseFolder = '/$baseFolder';
+      }
+
+      // 最終的なURLを直接生成 (例: https://aihlcmanage.github.io/icls_voice_app/assets/audio/s1_01.wav)
+      final assetPath = '$origin$baseFolder$fileName'; // もしアセットの階層がassets/audio直下ならここを調整
 
       final audio = html.AudioElement(assetPath);
       audio.play().then((_) {
