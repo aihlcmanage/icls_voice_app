@@ -21,5 +21,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    -
-      assets/audio/
+    - assets/
+    - assets/audio/
+    - assets/audio_config.json  # ← ここが "audio_config.json" 単体ではなく "assets/audio_config.json" になっているか確認
