@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 // ignore: avoid_web_libraries_in_flutter
 import 'dart:html' as html;
@@ -34,19 +35,20 @@ class ScenarioVoicePage extends StatefulWidget {
 class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  String _statusMessage = '音声読み込み中...';
+  String _statusMessage = '設定ファイルを読み込み中...';
   bool _isLoading = true;
 
-  List<String> _scenario1Files = [];
-  List<String> _scenario2Files = [];
-  List<String> _scenario3Files = [];
-  List<String> _commonFiles = [];
+  // JSONから読み込むデータ構造（file: 実ファイル名, label: 表示名）
+  List<Map<String, String>> _scenario1Files = [];
+  List<Map<String, String>> _scenario2Files = [];
+  List<Map<String, String>> _scenario3Files = [];
+  List<Map<String, String>> _commonFiles = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadAudioAssets();
+    _loadConfigJson();
   }
 
   @override
@@ -55,60 +57,45 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     super.dispose();
   }
 
-  Future<void> _loadAudioAssets() async {
+  // JSONファイルを読み込んで各リストに割り振る
+  Future<void> _loadConfigJson() async {
     try {
-      final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-      final allAssets = manifest.listAssets();
-
-      final audioPaths = allAssets.where((path) {
-        return path.startsWith('assets/audio/') &&
-            path.toLowerCase().endsWith('.wav');
-      }).map((path) => path.split('/').last).toList();
-
-      List<String> s1 = [];
-      List<String> s2 = [];
-      List<String> s3 = [];
-      List<String> common = [];
-
-      for (var fileName in audioPaths) {
-        if (fileName.contains('シナリオ1') || fileName.contains('S1')) {
-          s1.add(fileName);
-        } else if (fileName.contains('シナリオ2') || fileName.contains('S2')) {
-          s2.add(fileName);
-        } else if (fileName.contains('シナリオ3') || fileName.contains('S3')) {
-          s3.add(fileName);
-        } else if (fileName.contains('共通') || fileName.contains('アドリブ')) {
-          common.add(fileName);
-        } else {
-          s1.add(fileName);
-        }
-      }
+      final jsonString = await rootBundle.loadString('assets/audio_config.json');
+      final Map<String, dynamic> data = json.decode(jsonString);
 
       setState(() {
-        _scenario1Files = s1;
-        _scenario2Files = s2;
-        _scenario3Files = s3;
-        _commonFiles = common;
+        _scenario1Files = List<Map<String, String>>.from(
+          data['scenario1'].map((x) => Map<String, String>.from(x)),
+        );
+        _scenario2Files = List<Map<String, String>>.from(
+          data['scenario2'].map((x) => Map<String, String>.from(x)),
+        );
+        _scenario3Files = List<Map<String, String>>.from(
+          data['scenario3'].map((x) => Map<String, String>.from(x)),
+        );
+        _commonFiles = List<Map<String, String>>.from(
+          data['common'].map((x) => Map<String, String>.from(x)),
+        );
         _isLoading = false;
         _statusMessage = '準備完了（タップして再生）';
       });
     } catch (e) {
       setState(() {
         _isLoading = false;
-        _statusMessage = 'アセット読み込みエラー: $e';
+        _statusMessage = 'JSON読み込みエラー: $e';
       });
     }
   }
 
-  void _playSound(String fileName) {
+  // 半角英数字のファイル名で音声再生
+  void _playSound(String fileName, String label) {
     try {
-      final encodedFileName = Uri.encodeComponent(fileName);
-      final assetPath = 'assets/audio/$encodedFileName';
+      final assetPath = 'assets/audio/$fileName';
 
       final audio = html.AudioElement(assetPath);
       audio.play().then((_) {
         setState(() {
-          _statusMessage = '再生中: ${fileName.replaceAll('.wav', '')}';
+          _statusMessage = '再生中: $label';
         });
       }).catchError((e) {
         setState(() {
@@ -176,7 +163,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     );
   }
 
-  Widget _buildTwoZoneLayout(List<String> scenarioFiles, List<String> commonFiles, String title) {
+  Widget _buildTwoZoneLayout(List<Map<String, String>> scenarioFiles, List<Map<String, String>> commonFiles, String title) {
     return Padding(
       padding: const EdgeInsets.all(6.0),
       child: Column(
@@ -187,8 +174,8 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
               title: title,
               color: Colors.blue.shade100,
               badgeColor: Colors.blue.shade800,
-              files: scenarioFiles,
-              emptyText: 'シナリオ用音声がありません\n(例: シナリオ1_胸が痛い.wav)',
+              items: scenarioFiles,
+              emptyText: 'シナリオ用音声がありません',
             ),
           ),
           const SizedBox(height: 6),
@@ -198,8 +185,8 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
               title: '共通アドリブ・反応',
               color: Colors.orange.shade100,
               badgeColor: Colors.orange.shade900,
-              files: commonFiles,
-              emptyText: '共通音声がありません\n(例: 共通_うー苦しい.wav)',
+              items: commonFiles,
+              emptyText: '共通音声がありません',
             ),
           ),
         ],
@@ -211,7 +198,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     required String title,
     required Color color,
     required Color badgeColor,
-    required List<String> files,
+    required List<Map<String, String>> items,
     required String emptyText,
   }) {
     return Container(
@@ -237,7 +224,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
           ),
           const SizedBox(height: 4),
           Expanded(
-            child: files.isEmpty
+            child: items.isEmpty
                 ? Center(
                     child: Text(
                       emptyText,
@@ -247,7 +234,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      int crossAxisCount = files.length > 8 ? 3 : 2;
+                      int crossAxisCount = items.length > 8 ? 3 : 2;
                       
                       return GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
@@ -256,14 +243,13 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                           crossAxisSpacing: 6,
                           mainAxisSpacing: 6,
                           childAspectRatio: (constraints.maxWidth / crossAxisCount) /
-                              (constraints.maxHeight / ((files.length / crossAxisCount).ceil())),
+                              (constraints.maxHeight / ((items.length / crossAxisCount).ceil())),
                         ),
-                        itemCount: files.length,
+                        itemCount: items.length,
                         itemBuilder: (context, index) {
-                          final fileName = files[index];
-                          final displayName = fileName
-                              .replaceAll(RegExp(r'^(シナリオ1_|シナリオ2_|シナリオ3_|共通_|S1_|S2_|S3_|アドリブ_)'), '')
-                              .replaceAll('.wav', '');
+                          final item = items[index];
+                          final fileName = item['file'] ?? '';
+                          final label = item['label'] ?? '';
 
                           return ElevatedButton(
                             style: ElevatedButton.styleFrom(
@@ -275,12 +261,12 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                                 borderRadius: BorderRadius.circular(6),
                               ),
                             ),
-                            onPressed: () => _playSound(fileName),
+                            onPressed: () => _playSound(fileName, label),
                             child: Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
                                 child: Text(
-                                  displayName,
+                                  label,
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.bold,
