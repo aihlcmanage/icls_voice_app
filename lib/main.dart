@@ -182,7 +182,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
           Expanded(
             flex: 4,
             child: _buildZoneCard(
-              title: '共通アドリブ・反応',
+              title: 'アドリブ・反応',
               color: Colors.orange.shade100,
               badgeColor: Colors.orange.shade900,
               items: commonFiles,
