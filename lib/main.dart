@@ -1,8 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-// ignore: avoid_web_libraries_in_flutter
-import 'dart:html' as html;
 import 'package:flutter/services.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   runApp(const IclsVoiceApp());
@@ -35,10 +34,11 @@ class ScenarioVoicePage extends StatefulWidget {
 class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  late AudioPlayer _audioPlayer;
   String _statusMessage = '設定ファイルを読み込み中...';
   bool _isLoading = true;
 
-  // JSONから読み込むデータ構造（file: 実ファイル名, label: 表示名）
+  // JSONから読み込むデータ構造
   List<Map<String, String>> _scenario1Files = [];
   List<Map<String, String>> _scenario2Files = [];
   List<Map<String, String>> _scenario3Files = [];
@@ -48,12 +48,14 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _audioPlayer = AudioPlayer();
     _loadConfigJson();
   }
 
   @override
   void dispose() {
     _tabController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -87,35 +89,23 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     }
   }
 
-  // 強制的に正しい絶対パス/相対パスを構築して音声再生
-  void _playSound(String fileName, String label) {
+  // audioplayers を使った確実な音声再生
+  Future<void> _playSound(String fileName, String label) async {
     try {
-      // origin (例: https://aihlcmanage.github.io) と pathname (例: /icls_voice_app/) を確実に結合
-      final origin = html.window.location.origin;
-      final pathname = html.window.location.pathname ?? '/';
-      
-      // パスが /icls_voice_app/ で終わるように調整
-      String baseFolder = pathname.endsWith('/') ? pathname : '$pathname/';
-      if (!baseFolder.startsWith('/')) {
-        baseFolder = '/$baseFolder';
-      }
+      setState(() {
+        _statusMessage = '読み込み中: $label';
+      });
 
-      // 最終的なURLを直接生成 (例: https://aihlcmanage.github.io/icls_voice_app/assets/audio/s1_01.wav)
-      final assetPath = '$origin$baseFolder$fileName'; // もしアセットの階層がassets/audio直下ならここを調整
+      // AssetSource は pubspec.yaml の assets/ 音声フォルダを自動で認識します
+      await _audioPlayer.stop();
+      await _audioPlayer.play(AssetSource('audio/$fileName'));
 
-      final audio = html.AudioElement(assetPath);
-      audio.play().then((_) {
-        setState(() {
-          _statusMessage = '再生中: $label';
-        });
-      }).catchError((e) {
-        setState(() {
-          _statusMessage = '再生エラー: $e';
-        });
+      setState(() {
+        _statusMessage = '再生中: $label';
       });
     } catch (e) {
       setState(() {
-        _statusMessage = 'エラー: $e';
+        _statusMessage = '再生エラー: $e';
       });
     }
   }
