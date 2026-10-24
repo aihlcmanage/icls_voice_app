@@ -1,0 +1,43 @@
+{
+  "scenario1": [
+    
+    {"file": "s1_01.wav", "label": "看護婦さん体がかゆくなってきました"},
+    {"file": "s1_02.wav", "label": "苦しくはありません体がかゆいです"},
+    {"file": "s1_03.wav", "label": "息が息が苦しいストライダー"},
+    {"file": "s1_04.wav", "label": "苦しい看護婦さん苦しい"},
+    {"file": "s1_05.wav", "label": "あぅーー、うーー"}
+  ],
+  "scenario2": [
+    {"file": "s2_01.wav", "label": "看護婦さん、急に右肩が痛い"},
+    {"file": "s2_02.wav", "label": "いや、何もしてないのに痛い"},
+    {"file": "s2_03.wav", "label": "いや、こんな痛いのははじめて"},
+    {"file": "s2_04.wav", "label": "なんか、汗がじっと"},
+    {"file": "s2_05.wav", "label": "肩がすごく痛い、痛い"},
+    {"file": "s2_06.wav", "label": "むっ胸が苦しい"},
+    {"file": "s2_07.wav", "label": "あぅーー、うーーーー"}
+  ],
+  "scenario3": [
+    {"file": "s3_01.wav", "label": "看護婦さん、もう家に"},
+    {"file": "s3_02.wav", "label": "仕事があるので、帰して"},
+    {"file": "s3_03.wav", "label": "ここはどこですか"},
+    {"file": "s3_04.wav", "label": "あなたたち、私に何を"},
+    {"file": "s3_05.wav", "label": "しゃーしいね、早く"},
+    {"file": "s3_06.wav", "label": "寒い寒いうーー...."},
+    {"file": "s3_07.wav", "label": "あぅーー、うーー...."}
+
+  ],
+  "common": [
+    {"file": "common_m1_01.wav", "label": "男1：きつい"},
+    {"file": "common_m1_02.wav", "label": "男1：くるしい"},
+    {"file": "common_m1_03.wav", "label": "男1：どうにかして"},
+    {"file": "common_m1_04.wav", "label": "男1：痛い"},
+    {"file": "common_m2_01.wav", "label": "男2：きつい"},
+    {"file": "common_m2_02.wav", "label": "男2：くるしい"},
+    {"file": "common_m2_03.wav", "label": "男2：どうにかして"},
+    {"file": "common_m2_04.wav", "label": "男2：痛い"}, 
+    {"file": "common_f01.wav", "label": "女：きつい"},
+    {"file": "common_f02.wav", "label": "女：くるしい"},
+    {"file": "common_f03.wav", "label": "女：どうにかして"},
+    {"file": "common_f04.wav", "label": "女：痛い"}
+  ]
+}
