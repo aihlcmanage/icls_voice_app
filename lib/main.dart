@@ -37,7 +37,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
   String _statusMessage = '音声読み込み中...';
   bool _isLoading = true;
 
-  // アセットから読み込んだファイル一覧
   List<String> _scenario1Files = [];
   List<String> _scenario2Files = [];
   List<String> _scenario3Files = [];
@@ -56,11 +55,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     super.dispose();
   }
 
-  // ==========================================
-  // assets/audio/ 内のファイルを自動分解・分類
-  // ※ファイル名に「シナリオ1_」「シナリオ2_」「シナリオ3_」「共通_」などを付けるか、
-  //   接頭辞がないものは各カテゴリに自動振分けします。
-  // ==========================================
   Future<void> _loadAudioAssets() async {
     try {
       final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
@@ -77,7 +71,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
       List<String> common = [];
 
       for (var fileName in audioPaths) {
-        // ファイル名のプレフィックス（接頭辞）で自動分類
         if (fileName.contains('シナリオ1') || fileName.contains('S1')) {
           s1.add(fileName);
         } else if (fileName.contains('シナリオ2') || fileName.contains('S2')) {
@@ -87,7 +80,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
         } else if (fileName.contains('共通') || fileName.contains('アドリブ')) {
           common.add(fileName);
         } else {
-          // 接頭辞がない場合のデフォルト振り分け（例: シナリオ1へ）
           s1.add(fileName);
         }
       }
@@ -108,7 +100,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     }
   }
 
-  // 音声再生関数
   void _playSound(String fileName) {
     try {
       final encodedFileName = Uri.encodeComponent(fileName);
@@ -117,7 +108,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
       final audio = html.AudioElement(assetPath);
       audio.play().then((_) {
         setState(() {
-          // ボタンテキストが見やすいように拡張子 .wav を除外して表示
           _statusMessage = '再生中: ${fileName.replaceAll('.wav', '')}';
         });
       }).catchError((e) {
@@ -153,25 +143,21 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
           ],
         ),
       ),
-      // 画面全体を固定（スクロール不可）にし、1画面に収める
       body: SafeArea(
         child: Column(
           children: [
-            // ステータス表示バー（固定）
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 12),
               color: Colors.blue.shade50,
               child: Text(
                 _statusMessage,
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueDark),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
-
-            // メインコンテンツエリア（画面内に自動フィット）
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
@@ -190,13 +176,11 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     );
   }
 
-  // 1画面を「シナリオ専用定型文（上部）」と「共通アドリブ（下部）」の2領域に分割するレイアウト
   Widget _buildTwoZoneLayout(List<String> scenarioFiles, List<String> commonFiles, String title) {
     return Padding(
       padding: const EdgeInsets.all(6.0),
       child: Column(
         children: [
-          // 上部：シナリオ定型文領域（比率 60%）
           Expanded(
             flex: 6,
             child: _buildZoneCard(
@@ -208,7 +192,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
             ),
           ),
           const SizedBox(height: 6),
-          // 下部：共通アドリブ領域（比率 40%）
           Expanded(
             flex: 4,
             child: _buildZoneCard(
@@ -224,7 +207,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     );
   }
 
-  // 領域（カード）の構築（Gridで画面に合わせて自動縮小）
   Widget _buildZoneCard({
     required String title,
     required Color color,
@@ -242,7 +224,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 領域ラベル
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(
@@ -255,7 +236,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
             ),
           ),
           const SizedBox(height: 4),
-          // ボタン自動フィット格子レイアウト
           Expanded(
             child: files.isEmpty
                 ? Center(
@@ -267,23 +247,20 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      // 件数に応じて列数を動的決定（スマホ横〜iPad対応）
                       int crossAxisCount = files.length > 8 ? 3 : 2;
                       
                       return GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(), // スクロール無効
+                        physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
                           crossAxisSpacing: 6,
                           mainAxisSpacing: 6,
-                          // 枠内に収まるようにアスペクト比を自動調整
                           childAspectRatio: (constraints.maxWidth / crossAxisCount) /
                               (constraints.maxHeight / ((files.length / crossAxisCount).ceil())),
                         ),
                         itemCount: files.length,
                         itemBuilder: (context, index) {
                           final fileName = files[index];
-                          // 表示名（「シナリオ1_」「.wav」等を消して見やすく整形）
                           final displayName = fileName
                               .replaceAll(RegExp(r'^(シナリオ1_|シナリオ2_|シナリオ3_|共通_|S1_|S2_|S3_|アドリブ_)'), '')
                               .replaceAll('.wav', '');
@@ -291,7 +268,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                           return ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.white,
-                              foregroundColor: Colors.black80,
+                              foregroundColor: Colors.black87,
                               elevation: 2,
                               padding: const EdgeInsets.all(4),
                               shape: RoundedRectangleBorder(
@@ -299,7 +276,6 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                               ),
                             ),
                             onPressed: () => _playSound(fileName),
-                            // FittedBoxで文字サイズを自動縮小し、ボタン内に収める
                             child: Center(
                               child: FittedBox(
                                 fit: BoxFit.scaleDown,
