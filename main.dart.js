@@ -66745,7 +66745,7 @@ return A.W($async$r2,r)},
 a0h(a,b){var s,r,q,p,o,n,m,l=this
 try{o=window.location.pathname
 s=o==null?"":o
-r=A.l(J.aoS(s,"/")?s:A.l(s)+"/")+"assets/audio/"+a
+r=A.l(J.aoS(s,"/")?s:A.l(s)+"/")+"assets/assets/audio/"+a
 q=A.api(r)
 n=q.play()
 n.toString
