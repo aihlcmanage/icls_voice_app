@@ -87,12 +87,12 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     }
   }
 
-  // 半角英数字のファイル名で音声再生（GitHub Pagesのパスに対応）
+  // 半角英数字のファイル名で音声再生（Flutter Webのネストされたアセットパスに対応）
   void _playSound(String fileName, String label) {
     try {
       // 現在のWebページのURLベース（例: /icls_voice_app/）を取得して結合する
       final basePath = html.window.location.pathname ?? '';
-      final assetPath = '${basePath.endsWith('/') ? basePath : '$basePath/'}assets/audio/$fileName';
+      final assetPath = '${basePath.endsWith('/') ? basePath : '$basePath/'}assets/assets/audio/$fileName';
 
       final audio = html.AudioElement(assetPath);
       audio.play().then((_) {
