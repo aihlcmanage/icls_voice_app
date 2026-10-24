@@ -60,7 +60,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
   // JSONファイルを読み込んで各リストに割り振る
   Future<void> _loadConfigJson() async {
     try {
-      final jsonString = await rootBundle.loadString('audio_config.json');
+      final jsonString = await rootBundle.loadString('assets/audio_config.json');
       final Map<String, dynamic> data = json.decode(jsonString);
 
       setState(() {
