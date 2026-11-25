@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:audioplayers/audioplayers.dart';
@@ -35,53 +37,97 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   late AudioPlayer _audioPlayer;
+  late Uint8List _silentWavBytes;
+
+  StreamSubscription<void>? _completeSub;
   String _statusMessage = '設定ファイルを読み込み中...';
   bool _isLoading = true;
+  int _playRequestId = 0;
 
-  // JSONから読み込むデータ構造
-  List<Map<String, String>> _scenario1Files = [];
-  List<Map<String, String>> _scenario2Files = [];
-  List<Map<String, String>> _scenario3Files = [];
-  List<Map<String, String>> _commonFiles = [];
+  List<dynamic> _scenario1Files = [];
+  List<dynamic> _scenario2Files = [];
+  List<dynamic> _scenario3Files = [];
+  List<dynamic> _commonFiles = [];
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
     _audioPlayer = AudioPlayer();
+    _silentWavBytes = _createSilentWav(durationMs: 250, sampleRate: 16000);
+
+    _completeSub = _audioPlayer.onPlayerComplete.listen((_) {
+      if (!mounted) return;
+      setState(() {
+        if (_statusMessage.startsWith('再生中:')) {
+          _statusMessage = '再生完了（タップして再生）';
+        }
+      });
+    });
+
     _loadConfigJson();
   }
 
   @override
   void dispose() {
+    _completeSub?.cancel();
     _tabController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
 
-  // JSONファイルを読み込んで各リストに割り振る
+  Uint8List _createSilentWav({int durationMs = 250, int sampleRate = 16000}) {
+    const numChannels = 1;
+    const bitsPerSample = 16;
+    final numSamples = (sampleRate * durationMs) ~/ 1000;
+    final byteRate = sampleRate * numChannels * (bitsPerSample ~/ 8);
+    final blockAlign = numChannels * (bitsPerSample ~/ 8);
+    final dataSize = numSamples * blockAlign;
+    final totalSize = 44 + dataSize;
+
+    final buffer = ByteData(totalSize);
+
+    void writeAscii(int offset, String s) {
+      for (int i = 0; i < s.length; i++) {
+        buffer.setUint8(offset + i, s.codeUnitAt(i));
+      }
+    }
+
+    writeAscii(0, 'RIFF');
+    buffer.setUint32(4, 36 + dataSize, Endian.little);
+    writeAscii(8, 'WAVE');
+
+    writeAscii(12, 'fmt ');
+    buffer.setUint32(16, 16, Endian.little);
+    buffer.setUint16(20, 1, Endian.little);
+    buffer.setUint16(22, numChannels, Endian.little);
+    buffer.setUint32(24, sampleRate, Endian.little);
+    buffer.setUint32(28, byteRate, Endian.little);
+    buffer.setUint16(32, blockAlign, Endian.little);
+    buffer.setUint16(34, bitsPerSample, Endian.little);
+
+    writeAscii(36, 'data');
+    buffer.setUint32(40, dataSize, Endian.little);
+
+    return buffer.buffer.asUint8List();
+  }
+
   Future<void> _loadConfigJson() async {
     try {
       final jsonString = await rootBundle.loadString('assets/audio_config.json');
-      final Map<String, dynamic> data = json.decode(jsonString);
+      final data = json.decode(jsonString);
 
+      if (!mounted) return;
       setState(() {
-        _scenario1Files = List<Map<String, String>>.from(
-          data['scenario1'].map((x) => Map<String, String>.from(x)),
-        );
-        _scenario2Files = List<Map<String, String>>.from(
-          data['scenario2'].map((x) => Map<String, String>.from(x)),
-        );
-        _scenario3Files = List<Map<String, String>>.from(
-          data['scenario3'].map((x) => Map<String, String>.from(x)),
-        );
-        _commonFiles = List<Map<String, String>>.from(
-          data['common'].map((x) => Map<String, String>.from(x)),
-        );
+        _scenario1Files = List<dynamic>.from(data['scenario1'] ?? []);
+        _scenario2Files = List<dynamic>.from(data['scenario2'] ?? []);
+        _scenario3Files = List<dynamic>.from(data['scenario3'] ?? []);
+        _commonFiles = List<dynamic>.from(data['common'] ?? []);
         _isLoading = false;
         _statusMessage = '準備完了（タップして再生）';
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
         _statusMessage = 'JSON読み込みエラー: $e';
@@ -89,21 +135,35 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     }
   }
 
-  // audioplayers を使った確実な音声再生
   Future<void> _playSound(String fileName, String label) async {
+    final int currentRequestId = ++_playRequestId;
+
     try {
+      if (!mounted) return;
       setState(() {
-        _statusMessage = '読み込み中: $label';
+        _statusMessage = '接続待機中: $label';
       });
 
-      // AssetSource は pubspec.yaml の assets/ 音声フォルダを自動で認識します
       await _audioPlayer.stop();
-      await _audioPlayer.play(AssetSource('audio/$fileName'));
+      if (currentRequestId != _playRequestId) return;
 
+      await _audioPlayer.setVolume(0.0);
+      await _audioPlayer.play(BytesSource(_silentWavBytes));
+      await Future.delayed(const Duration(milliseconds: 220));
+      if (currentRequestId != _playRequestId) return;
+
+      await _audioPlayer.stop();
+      await _audioPlayer.setVolume(1.0);
+      if (currentRequestId != _playRequestId) return;
+
+      if (!mounted) return;
       setState(() {
         _statusMessage = '再生中: $label';
       });
+
+      await _audioPlayer.play(AssetSource('audio/$fileName'));
     } catch (e) {
+      if (currentRequestId != _playRequestId || !mounted) return;
       setState(() {
         _statusMessage = '再生エラー: $e';
       });
@@ -114,7 +174,10 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('ICLS 音声シミュレーター', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'ICLS 音声シミュレーター',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
         toolbarHeight: 40,
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
@@ -140,7 +203,11 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
               color: Colors.blue.shade50,
               child: Text(
                 _statusMessage,
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue.shade900,
+                ),
                 textAlign: TextAlign.center,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
@@ -164,7 +231,11 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     );
   }
 
-  Widget _buildTwoZoneLayout(List<Map<String, String>> scenarioFiles, List<Map<String, String>> commonFiles, String title) {
+  Widget _buildTwoZoneLayout(
+    List<dynamic> scenarioFiles,
+    List<dynamic> commonFiles,
+    String title,
+  ) {
     return Padding(
       padding: const EdgeInsets.all(6.0),
       child: Column(
@@ -199,7 +270,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
     required String title,
     required Color color,
     required Color badgeColor,
-    required List<Map<String, String>> items,
+    required List<dynamic> items,
     required String emptyText,
   }) {
     return Container(
@@ -220,7 +291,11 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
             ),
             child: Text(
               title,
-              style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold),
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
           const SizedBox(height: 4),
@@ -236,7 +311,7 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                 : LayoutBuilder(
                     builder: (context, constraints) {
                       int crossAxisCount = items.length > 8 ? 3 : 2;
-                      
+
                       return GridView.builder(
                         physics: const NeverScrollableScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -248,9 +323,9 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                         ),
                         itemCount: items.length,
                         itemBuilder: (context, index) {
-                          final item = items[index];
-                          final fileName = item['file'] ?? '';
-                          final label = item['label'] ?? '';
+                          final item = items[index] as Map<String, dynamic>;
+                          final fileName = item['file']?.toString() ?? '';
+                          final label = item['label']?.toString() ?? '';
 
                           return ElevatedButton(
                             style: ElevatedButton.styleFrom(
