@@ -47,7 +47,10 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
   List<dynamic> _scenario1Files = [];
   List<dynamic> _scenario2Files = [];
   List<dynamic> _scenario3Files = [];
-  List<dynamic> _commonFiles = [];
+
+  List<dynamic> _scenario1Adlibs = [];
+  List<dynamic> _scenario2Adlibs = [];
+  List<dynamic> _scenario3Adlibs = [];
 
   @override
   void initState() {
@@ -122,7 +125,11 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
         _scenario1Files = List<dynamic>.from(data['scenario1'] ?? []);
         _scenario2Files = List<dynamic>.from(data['scenario2'] ?? []);
         _scenario3Files = List<dynamic>.from(data['scenario3'] ?? []);
-        _commonFiles = List<dynamic>.from(data['common'] ?? []);
+
+        _scenario1Adlibs = List<dynamic>.from(data['scenario1_adlib'] ?? []);
+        _scenario2Adlibs = List<dynamic>.from(data['scenario2_adlib'] ?? []);
+        _scenario3Adlibs = List<dynamic>.from(data['scenario3_adlib'] ?? []);
+
         _isLoading = false;
         _statusMessage = '準備完了（タップして再生）';
       });
@@ -219,9 +226,24 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                   : TabBarView(
                       controller: _tabController,
                       children: [
-                        _buildTwoZoneLayout(_scenario1Files, _commonFiles, 'シナリオ1 定型文'),
-                        _buildTwoZoneLayout(_scenario2Files, _commonFiles, 'シナリオ2 定型文'),
-                        _buildTwoZoneLayout(_scenario3Files, _commonFiles, 'シナリオ3 定型文'),
+                        _buildTwoZoneLayout(
+                          _scenario1Files,
+                          _scenario1Adlibs,
+                          'シナリオ1 定型文',
+                          'アドリブ・反応（男1）',
+                        ),
+                        _buildTwoZoneLayout(
+                          _scenario2Files,
+                          _scenario2Adlibs,
+                          'シナリオ2 定型文',
+                          'アドリブ・反応（男2）',
+                        ),
+                        _buildTwoZoneLayout(
+                          _scenario3Files,
+                          _scenario3Adlibs,
+                          'シナリオ3 定型文',
+                          'アドリブ・反応（女）',
+                        ),
                       ],
                     ),
             ),
@@ -233,17 +255,18 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
 
   Widget _buildTwoZoneLayout(
     List<dynamic> scenarioFiles,
-    List<dynamic> commonFiles,
-    String title,
+    List<dynamic> adlibFiles,
+    String fixedTitle,
+    String adlibTitle,
   ) {
     return Padding(
       padding: const EdgeInsets.all(6.0),
       child: Column(
         children: [
           Expanded(
-            flex: 6,
+            flex: 5,
             child: _buildZoneCard(
-              title: title,
+              title: fixedTitle,
               color: Colors.blue.shade100,
               badgeColor: Colors.blue.shade800,
               items: scenarioFiles,
@@ -252,13 +275,13 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
           ),
           const SizedBox(height: 6),
           Expanded(
-            flex: 4,
+            flex: 5,
             child: _buildZoneCard(
-              title: 'アドリブ・反応',
+              title: adlibTitle,
               color: Colors.orange.shade100,
               badgeColor: Colors.orange.shade900,
-              items: commonFiles,
-              emptyText: '共通音声がありません',
+              items: adlibFiles,
+              emptyText: 'アドリブ音声がありません',
             ),
           ),
         ],
@@ -310,16 +333,28 @@ class _ScenarioVoicePageState extends State<ScenarioVoicePage>
                   )
                 : LayoutBuilder(
                     builder: (context, constraints) {
-                      int crossAxisCount = items.length > 8 ? 3 : 2;
+                      final int crossAxisCount = items.length > 8 ? 3 : 2;
+                      final int rows = (items.length / crossAxisCount).ceil();
+                      final double minRowHeight = 46.0;
+                      final double totalSpacing = (rows - 1) * 6.0;
+                      final double availableHeight =
+                          constraints.maxHeight - totalSpacing;
+                      final double rowHeight =
+                          (availableHeight / rows) < minRowHeight
+                              ? minRowHeight
+                              : (availableHeight / rows);
+                      final double itemWidth =
+                          (constraints.maxWidth - (crossAxisCount - 1) * 6.0) /
+                              crossAxisCount;
+                      final double childAspectRatio = itemWidth / rowHeight;
 
                       return GridView.builder(
-                        physics: const NeverScrollableScrollPhysics(),
+                        physics: const ClampingScrollPhysics(),
                         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                           crossAxisCount: crossAxisCount,
                           crossAxisSpacing: 6,
                           mainAxisSpacing: 6,
-                          childAspectRatio: (constraints.maxWidth / crossAxisCount) /
-                              (constraints.maxHeight / ((items.length / crossAxisCount).ceil())),
+                          childAspectRatio: childAspectRatio,
                         ),
                         itemCount: items.length,
                         itemBuilder: (context, index) {
